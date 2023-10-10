@@ -29,6 +29,11 @@
 #include "esp_system.h"
 #include "driver/i2s.h"
 #include "ws2812.h"
+#include "esp_console.h"
+#include "esp_log.h"
+#include "argtable3/argtable3.h"
+
+static const char TAG[] = "ws2812";
 
 i2s_config_t i2s_config = {
     .mode = I2S_MODE_MASTER | I2S_MODE_TX,
@@ -87,4 +92,59 @@ void ws2812_update(ws2812_pixel_t *pixels) {
   i2s_write(I2S_NUM, off_buffer, ZERO_BUFFER, &bytes_written, portMAX_DELAY);
   vTaskDelay(pdMS_TO_TICKS(10));
   i2s_zero_dma_buffer(I2S_NUM);
+}
+
+static struct {
+    struct arg_str *color;
+    struct arg_int *pos;
+    struct arg_end *end;
+} g_ws2812_args;
+
+ws2812_pixel_t g_ws2812_pixels[LED_NUMBER] = {0};
+
+static int ws2812_handler(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **) &g_ws2812_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, g_ws2812_args.end, argv[0]);
+        return 1;
+    }
+
+    int pos = 0;
+    if(g_ws2812_args.pos->count > 0) {
+        pos = g_ws2812_args.pos->ival[0];
+    }
+    if(pos < 0 || pos >= LED_NUMBER) {
+        ESP_LOGW(TAG, "Invalid argument: pos must be between 0 and %d", LED_NUMBER - 1);
+        return 1;
+    }
+
+    char *endptr;
+    uint32_t color = strtol(g_ws2812_args.color->sval[0], &endptr, 16);
+    if(*endptr != '\0') {
+        ESP_LOGW(TAG, "Invalid argument: color must be valid hex!");
+        return 1;
+    }
+    g_ws2812_pixels[pos].red = color >> 16;
+    g_ws2812_pixels[pos].green = color >> 8;
+    g_ws2812_pixels[pos].blue = color;
+
+    ws2812_update(g_ws2812_pixels);
+    return 0;
+}
+
+void register_ws2812(void)
+{
+    g_ws2812_args.color = arg_str1(NULL, NULL, "<color>", "The color in hex format. Example: ff0000");
+    g_ws2812_args.pos = arg_int0(NULL, "pos", "<pos>", "The position of the led. Default is 0");
+    g_ws2812_args.end = arg_end(2);
+
+    const esp_console_cmd_t cmd = {
+        .command = "ws2812",
+        .help = "Set the ws2812 color",
+        .hint = NULL,
+        .func = &ws2812_handler,
+        .argtable = &g_ws2812_args
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
 }

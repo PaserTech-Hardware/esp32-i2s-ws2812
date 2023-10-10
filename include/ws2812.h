@@ -27,12 +27,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define LED_NUMBER 8
+#define LED_NUMBER 1
 #define PIXEL_SIZE 12 // each colour takes 4 bytes
 #define SAMPLE_RATE (93750)
 #define ZERO_BUFFER 48
 #define I2S_NUM (0)
-#define I2S_DO_IO (GPIO_NUM_25)
+#define I2S_DO_IO (GPIO_NUM_23)
 #define I2S_DI_IO (-1)
 
 typedef struct {
@@ -44,5 +44,7 @@ typedef struct {
 void ws2812_init();
 
 void ws2812_update(ws2812_pixel_t *pixels);
+
+void register_ws2812(void);
 
 #endif
